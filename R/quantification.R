@@ -278,14 +278,33 @@ parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
 
   annotation_grl <- get_GRangesList(annotation)
   if (file.exists(file.path(outdir, "isoform_annotated.gff3"))) {
-    isoform_grl <- get_GRangesList(file.path(outdir, "isoform_annotated.gff3"))
+    novel_annotation <- file.path(outdir, "isoform_annotated.gff3")
+  } else if (file.exists(file.path(outdir, "isoform_annotated.gtf"))) {
+    novel_annotation <- file.path(outdir, "isoform_annotated.gtf")
+  } else {
+    novel_annotation <- NULL
+    message("No novel annotation found.")
+  }
+  if (!is.null(novel_annotation)) {
+    novel_grl <- get_GRangesList(novel_annotation)
     annotation_grl <- c(annotation_grl, 
-      isoform_grl[!names(isoform_grl) %in% names(annotation_grl)]
+      novel_grl[!names(novel_grl) %in% names(annotation_grl)]
     )
   }
+
   annotation_grl <- annotation_grl[names(annotation_grl) %in% rownames(sce)]
   SummarizedExperiment::rowRanges(sce)[names(annotation_grl)] <- annotation_grl
   rowData(sce)$transcript_id <- rownames(sce)
+
+  # add gene ID
+  gene_id_tb <- c(annotation, novel_annotation) |>
+    lapply(txdbmaker::makeTxDbFromGFF) |>
+    lapply(\(x) GenomicFeatures::transcriptsBy(x, by="gene")) %>%
+    do.call(c, .) |>
+    lapply(\(x) GenomicRanges::mcols(x)[, 'tx_name', drop=FALSE]) |>
+    lapply(as.data.frame) |>
+    dplyr::bind_rows(.id = "gene_id")
+  rowData(sce)$gene_id <- gene_id_tb[match(rownames(sce), gene_id_tb$tx_name), "gene_id"]
 
   return(sce)
 }
