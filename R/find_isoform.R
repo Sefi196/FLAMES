@@ -141,6 +141,30 @@ find_isoform_flames <- function(annotation, genome_fa, genome_bam, outdir, confi
   Rsamtools::indexFa(file.path(outdir, "transcript_assembly.fa")) # index the output fa file
 }
 
+
+#' Fake stranded GFF file
+#' @description Check if all the transcript in the annotation is stranded. If not, convert to '+'.
+#' @keywords internal
+fake_stranded_gff <- function(gff_file) {
+  # check if all the transcript in the annotation is stranded
+  annotation_d <- read.csv(gff_file, sep = "\t",
+    header = FALSE, stringsAsFactors = FALSE,
+    comment.char = "#")
+  strands <- annotation_d[, 7]
+  if (any(strands == '.')) {
+    modified_gtf <- paste0(tempfile(), '/tmp.gtf')
+    dir.create(dirname(modified_gtf))
+    warning(sprintf("Some transcripts in the annotation file %s are not stranded. Converting to '+' in temporary file %s", gff_file, modified_gtf))
+    strands[strands == '.'] <- '+'
+    annotation_d[, 7] <- strands
+    write.table(annotation_d, modified_gtf, sep = "\t",
+      row.names = FALSE, quote = FALSE, col.names = FALSE)
+    return(modified_gtf)
+    # file will get deleted after quitting R
+  }
+  return(gff_file)
+}
+
 #' GTF/GFF to FASTA conversion
 #' @description convert the transcript annotation to transcriptome assembly as FASTA file. The
 #' genome annotation is first imported as TxDb object and then used to extract transcript sequence
@@ -164,22 +188,7 @@ find_isoform_flames <- function(annotation, genome_fa, genome_bam, outdir, confi
 #'
 #' @export
 annotation_to_fasta <- function(isoform_annotation, genome_fa, outdir, extract_fn) {
-  # check if all the transcript in the annotation is stranded
-  annotation_d <- read.csv(isoform_annotation, sep = "\t",
-    header = FALSE, stringsAsFactors = FALSE,
-    comment.char = "#")
-  strands <- annotation_d[, 7]
-  if (any(strands == '.')) {
-    strands[strands == '.'] <- '+'
-    annotation_d[, 7] <- strands
-    modified_gtf <- paste0(tempfile(), '/tmp.gtf')
-    dir.create(dirname(modified_gtf))
-    write.table(annotation_d, modified_gtf, sep = "\t",
-      row.names = FALSE, quote = FALSE, col.names = FALSE)
-    isoform_annotation <- modified_gtf
-  }
-  rm(annotation_d, strands)
-
+  isofile <- fake_stranded_gff(isoform_annotation)
   out_file <- file.path(outdir, "transcript_assembly.fa")
 
   dna_string_set <- Biostrings::readDNAStringSet(genome_fa)

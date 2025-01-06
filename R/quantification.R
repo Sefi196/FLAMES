@@ -298,6 +298,7 @@ parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
 
   # add gene ID
   gene_id_tb <- c(annotation, novel_annotation) |>
+    lapply(fake_stranded_gff) |>
     lapply(txdbmaker::makeTxDbFromGFF) |>
     lapply(\(x) GenomicFeatures::transcriptsBy(x, by="gene")) %>%
     do.call(c, .) |>
