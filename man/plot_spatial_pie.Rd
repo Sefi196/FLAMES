@@ -12,6 +12,8 @@ plot_spatial_pie(spe, features, assay_type = "counts", opacity = 50)
 \item{features}{The features to plot.}
 
 \item{assay_type}{The assay that contains the given features.}
+
+\item{opacity}{The opacity of the background tissue image.}
 }
 \value{
 A ggplot object.

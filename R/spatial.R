@@ -5,6 +5,7 @@
 #' @param spatial_barcode_file The path to the spatial barcode file, e.g. \code{"spaceranger-2.1.1/lib/python/cellranger/barcodes/visium-v2_coordinates.txt"}.
 #' @param mannual_align_json The path to the mannual alignment json file.
 #' @param image 'DataFrame' containing the image data. See \code{?SpatialExperiment::readImgData} and \code{?SpatialExperiment::SpatialExperiment}.
+#' @param tissue_positions_file The path to Visium positions file, e.g. \code{"spaceranger-2.1.1/lib/python/cellranger/barcodes/visium-v2_tissue_positions_list.csv"}.
 #' @return A SpatialExperiment object.
 #' @importFrom readr read_table
 #' @importFrom jsonlite fromJSON
@@ -95,11 +96,14 @@ create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image, tis
 #' @param spe The SpatialExperiment object.
 #' @param features The features to plot.
 #' @param assay_type The assay that contains the given features.
+#' @param opacity The opacity of the background tissue image.
 #' @importFrom ggplot2 ggplot annotation_raster coord_fixed theme_void aes
 #' @importFrom scatterpie geom_scatterpie
+#' @importFrom magick image_read image_colorize
+#' @importFrom grDevices as.raster
 #' @importFrom dplyr mutate
 #' @return A ggplot object.
-plot_spatial_pie <- function(spe, features, assay_type = 'counts', opacity = 50) {
+plot_spatial_pie <- function(spe, features, assay_type = "counts", opacity = 50) {
   if (nrow(imgData(spe)) > 0) {
     # background_img <- SpatialExperiment::imgData(spe)$data[[1]] |>
     #   SpatialExperiment::imgRaster()

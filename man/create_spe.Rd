@@ -20,6 +20,8 @@ create_spe(
 \item{mannual_align_json}{The path to the mannual alignment json file.}
 
 \item{image}{'DataFrame' containing the image data. See \code{?SpatialExperiment::readImgData} and \code{?SpatialExperiment::SpatialExperiment}.}
+
+\item{tissue_positions_file}{The path to Visium positions file, e.g. \code{"spaceranger-2.1.1/lib/python/cellranger/barcodes/visium-v2_tissue_positions_list.csv"}.}
 }
 \value{
 A SpatialExperiment object.

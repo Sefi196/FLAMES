@@ -201,14 +201,13 @@ quantify_transcript_flames <- function(annotation, outdir, config, pipeline = "s
       "fsm_annotation" = file.path(outdir, "isoform_FSM_annotation.csv"),
       "outdir" = outdir
     )
-    load_genome_anno <- rtracklayer::import(annotation, feature.type = c("exon", "utr"))
-    sce <- generate_sc_singlecell(out_files, load_genome_anno = load_genome_anno)
+    sce <- generate_sc_singlecell(out_files) |>
+      addRowRanges(annotation, outdir)
     return(sce)
   } else if (pipeline == "sc_multi_sample") {
-    sce_list <- as.list(1:length(samples))
+    sce_list <- as.list(seq_along(samples))
     names(sce_list) <- samples
-    load_genome_anno <- rtracklayer::import(annotation, feature.type = c("exon", "utr"))
-    for (i in 1:length(samples)) {
+    for (i in seq_along(samples)) {
       out_files <- list(
         "annotation" = annotation,
         "counts" = file.path(outdir, paste0(samples[i], "_transcript_count.csv.gz")),
@@ -218,7 +217,8 @@ quantify_transcript_flames <- function(annotation, outdir, config, pipeline = "s
         "outdir" = outdir,
         "fsm_annotation" = file.path(outdir, "isoform_FSM_annotation.csv")
       )
-      sce_list[[i]] <- generate_sc_singlecell(out_files, load_genome_anno = load_genome_anno)
+      sce_list[[i]] <- generate_sc_singlecell(out_files) |>
+        addRowRanges(annotation, outdir)
     }
     return(sce_list)
   } else if (pipeline == "bulk") {
@@ -231,8 +231,8 @@ quantify_transcript_flames <- function(annotation, outdir, config, pipeline = "s
       "outdir" = outdir,
       "fsm_annotation" = file.path(outdir, "isoform_FSM_annotation.csv")
     )
-    load_genome_anno <- rtracklayer::import(annotation, feature.type = c("exon", "utr"))
-    se <- generate_bulk_summarized(out_files, load_genome_anno = load_genome_anno)
+    se <- generate_bulk_summarized(out_files) |>
+      addRowRanges(annotation, outdir)
     return(se)
   }
 }
@@ -271,8 +271,8 @@ run_oarfish <- function(realign_bam, outdir, threads = 1, sample, oarfish_bin, s
 #' @importFrom SummarizedExperiment rowRanges rowRanges<-
 parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
   mtx <- t(Matrix::readMM(paste0(oarfish_out, ".count.mtx")))
-  rownames(mtx) <- read.delim(paste0(oarfish_out, ".features.txt"), header = F)$V1
-  colnames(mtx) <- read.delim(paste0(oarfish_out, ".barcodes.txt"), header = F)$V1
+  rownames(mtx) <- read.delim(paste0(oarfish_out, ".features.txt"), header = FALSE)$V1
+  colnames(mtx) <- read.delim(paste0(oarfish_out, ".barcodes.txt"), header = FALSE)$V1
   # mtx <- mtx[MatrixGenerics::rowSums(mtx) > 0, ]
   sce <- SingleCellExperiment::SingleCellExperiment(assays = list(counts = mtx))
 
@@ -287,7 +287,7 @@ parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
   }
   if (!is.null(novel_annotation)) {
     novel_grl <- get_GRangesList(novel_annotation)
-    annotation_grl <- c(annotation_grl, 
+    annotation_grl <- c(annotation_grl,
       novel_grl[!names(novel_grl) %in% names(annotation_grl)]
     )
   }
@@ -300,9 +300,9 @@ parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
   gene_id_tb <- c(annotation, novel_annotation) |>
     lapply(fake_stranded_gff) |>
     lapply(txdbmaker::makeTxDbFromGFF) |>
-    lapply(\(x) GenomicFeatures::transcriptsBy(x, by="gene")) %>%
+    lapply(\(x) GenomicFeatures::transcriptsBy(x, by = "gene")) %>%
     do.call(c, .) |>
-    lapply(\(x) GenomicRanges::mcols(x)[, 'tx_name', drop=FALSE]) |>
+    lapply(\(x) GenomicRanges::mcols(x)[, "tx_name", drop = FALSE]) |>
     lapply(as.data.frame) |>
     dplyr::bind_rows(.id = "gene_id")
   rowData(sce)$gene_id <- gene_id_tb[match(rownames(sce), gene_id_tb$tx_name), "gene_id"]
@@ -313,7 +313,7 @@ parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
 #' @importFrom SummarizedExperiment SummarizedExperiment
 parse_oarfish_bulk_output <- function(oarfish_outs, sample_names) {
   mtx_list <- lapply(oarfish_outs, function(oarfish_out) {
-    read.delim(paste0(oarfish_out, ".quant"), header = T, row.names = 1)[, "num_reads", drop = F]
+    read.delim(paste0(oarfish_out, ".quant"), header = TRUE, row.names = 1)[, "num_reads", drop = F]
   })
   mtx <- do.call(cbind, mtx_list)
   colnames(mtx) <- sample_names

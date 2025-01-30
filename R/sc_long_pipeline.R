@@ -334,11 +334,7 @@ sc_long_pipeline <- function(
 
 #' @importFrom utils read.csv
 #' @importFrom GenomicRanges GRangesList GRanges
-generate_sc_sce <- function(out_files, load_genome_anno = NULL, create_function) {
-  # this method requires testing using single cell data
-  mdata <- list(
-    "OutputFiles" = out_files
-  )
+generate_sc_sce <- function(out_files, create_function) {
 
   transcript_count <- read.csv(out_files$counts, stringsAsFactors = FALSE)
   if ("fsm_annotation" %in% names(out_files)) {
@@ -349,7 +345,6 @@ generate_sc_sce <- function(out_files, load_genome_anno = NULL, create_function)
   transcript_count <- transcript_count[transcript_count$transcript_id %in% isoform_FSM_annotation$transcript_id, ]
 
   isoform_FSM_annotation <- isoform_FSM_annotation[match(transcript_count$transcript_id, isoform_FSM_annotation$transcript_id), ]
-  # transcript_count <- transcript_count[match(isoform_FSM_annotation$transcript_id, transcript_count$transcript_id), ]
   transcript_count$FSM_match <- isoform_FSM_annotation$FSM_match
   if (!all(transcript_count$transcript_id %in% isoform_FSM_annotation$transcript_id)) {
     message("Some transcript_ids are not recorded in isoform_FSM_annotation.csv")
@@ -360,55 +355,37 @@ generate_sc_sce <- function(out_files, load_genome_anno = NULL, create_function)
   tr_anno <- transcript_count[, c("transcript_id", "gene_id", "FSM_match")]
 
   # sum transcript (FSM) counts
-  mer_tmp <- transcript_count %>%
-    group_by(FSM_match) %>%
-    summarise_at(cell_bcs, sum)
+  mer_tmp <- transcript_count |>
+    dplyr::group_by(FSM_match) |> # nolint: object_usage_linter.
+    dplyr::summarise_at(cell_bcs, sum)
 
   # Create long read SCE
   tr_anno <- tr_anno[match(mer_tmp$FSM_match, tr_anno$FSM_match), ]
   tr_sce <- create_function(
     assays = list(counts = as.matrix(mer_tmp[, -1])),
-    metadata = mdata
+    metadata = list("OutputFiles" = out_files),
   )
-  # rownames(tr_sce) <- mer_tmp$FSM_match
-
-  isoform_gff <- get_GRangesList(out_files$isoform_annotated)
-  missing_tr <- !(tr_anno$transcript_id %in% names(isoform_gff))
-
-  rowRanges(tr_sce) <- rep(GRangesList(GRanges(seqnames = NULL, ranges = NULL, strand = NULL, seqinfo = NULL, seqlengths = NULL)), dim(tr_sce)[1])
-
-  if (!is.null(load_genome_anno)) {
-    genome_anno <- S4Vectors::split(load_genome_anno, load_genome_anno$transcript_id)
-    add_from_genome_anno <- (missing_tr & (tr_anno$transcript_id %in% names(genome_anno)))
-    rowRanges(tr_sce[add_from_genome_anno, ]) <- genome_anno[tr_anno[add_from_genome_anno, "transcript_id"]]
-    if (!all((!missing_tr) | tr_anno[, "transcript_id"] %in% names(genome_anno))) {
-      message("Warning: some transcript_id could not be found in annotation file\n")
-    }
-  } else if (any(missing_tr)) {
-    message("Warning: some transcript_id could not be found in annotation file\n")
-  }
-
-  rowRanges(tr_sce[!missing_tr, ]) <- isoform_gff[tr_anno[!missing_tr, "transcript_id"]]
-
 
   rowData(tr_sce) <- DataFrame(tr_anno)
   rownames(tr_sce) <- tr_anno$FSM_match
-  # return the created singlecellexperiment
   return(tr_sce)
 }
 
-generate_sc_singlecell <- function(out_files, load_genome_anno = NULL) {
-  return(generate_sc_sce(out_files = out_files, load_genome_anno = load_genome_anno, create_function = SingleCellExperiment::SingleCellExperiment))
+generate_sc_singlecell <- function(out_files) {
+  return(generate_sc_sce(out_files = out_files, create_function = SingleCellExperiment::SingleCellExperiment))
 }
 
-generate_bulk_summarized <- function(out_files, load_genome_anno = NULL) {
-  return(generate_sc_sce(out_files = out_files, load_genome_anno = load_genome_anno, create_function = SummarizedExperiment::SummarizedExperiment))
+generate_bulk_summarized <- function(out_files) {
+  return(generate_sc_sce(out_files = out_files, create_function = SummarizedExperiment::SummarizedExperiment))
 }
 
 
 #' Create \code{SingleCellExperiment} object from \code{FLAMES} output folder
 #' @param outdir The folder containing \code{FLAMES} output files
-#' @param annotation (Optional) the annotation file that was used to produce the output files
+#' @param annotation the annotation file that was used to produce the output files
+#' @param quantification (Optional)  the quantification method used to generate the 
+#' output files (either "FLAMES" or "Oarfish".). If not specified, the function will 
+#' attempt to determine the quantification method.
 #' @return a list of \code{SingleCellExperiment} objects if multiple transcript matrices were
 #' found in the output folder, or a \code{SingleCellExperiment} object if only one were found
 #' @export
@@ -436,39 +413,95 @@ generate_bulk_summarized <- function(out_files, load_genome_anno = NULL) {
 #'   config_file = create_config(outdir, oarfish_quantification = FALSE)
 #' )
 #' sce_2 <- create_sce_from_dir(outdir, annotation)
-create_sce_from_dir <- function(outdir, annotation) {
-  samples <- list.files(outdir)[grepl("_?transcript_count.csv.gz", list.files(outdir))]
-  if (length(samples) == 0) {
-    stop("Cannot find transcript_count.csv.gz file in", outdir)
-  }
-  sce_list <- list()
-  if (file.exists(file.path(outdir, "isoform_annotated.gtf"))) {
-    isoform_annotated <- file.path(outdir, "isoform_annotated.gtf")
-  } else if (file.exists(file.path(outdir, "isoform_annotated.gff3"))) {
-    isoform_annotated <- file.path(outdir, "isoform_annotated.gff3")
-  } else {
-    stop("Missing isoform_annotated.gff3/gtf file")
-  }
+create_sce_from_dir <- function(outdir, annotation, quantification = "FLAMES") {
 
-  for (i in 1:length(samples)) {
-    out_files <- list(
-      counts = file.path(outdir, samples[i]),
-      isoform_annotated = isoform_annotated,
-      outdir = outdir,
-      transcript_assembly = file.path(outdir, "transcript_assembly.fa")
-    )
-    if (!missing("annotation") && !is.null(annotation)) {
-      out_files[["annotation"]] <- annotation
-      load_genome_anno <- rtracklayer::import(annotation, feature.type = c("exon", "utr"))
-      sce_list[[samples[i]]] <- generate_sc_singlecell(out_files, load_genome_anno = load_genome_anno)
+  samples <- list.files(outdir, pattern = "_?transcript_count.csv.gz$", full.names = TRUE)
+  samples_oarfish <- list.files(outdir, pattern = "\\.count\\.mtx$", full.names = TRUE) |>
+    stringr::str_remove("\\.count\\.mtx$")
+
+  if (length(samples) > 0 && quantification == "FLAMES") {
+    sce_list <- lapply(samples, \(x) {
+      out_files <- list(
+        counts = x,
+        outdir = outdir,
+        transcript_assembly = file.path(outdir, "transcript_assembly.fa"),
+        annotation = annotation
+      )
+      generate_sc_singlecell(out_files) |>
+        addRowRanges(annotation, outdir)
+    })
+    if (length(samples) == 1) {
+      return(sce_list[[1]])
+    }
+    return(sce_list)
+
+  } else if (length(samples_oarfish) > 0 && (missing(quantification) || quantification == "Oarfish")) {
+    sce_list <- lapply(samples_oarfish, \(x) {
+      parse_oarfish_sc_output(
+        oarfish_out = x,
+        annotation = annotation,
+        outdir = outdir
+      )
+    })
+    if (length(samples_oarfish) == 1) {
+      return(sce_list[[1]])
+    }
+    return(sce_list)
+
+  } else {
+    if (missing(quantification)) {
+      stop(sprintf("No transcript count results found in %s, folder needs to contain transcript_count.csv.gz (FLAMES quantification results) or count.mtx (Oarfish quantification)", outdir))
+    } else if (quantification == "FLAMES") {
+      stop(sprintf("No transcript count results found in %s, folder needs to contain transcript_count.csv.gz (FLAMES quantification results)", outdir))
     } else {
-      sce_list[[samples[i]]] <- generate_sc_singlecell(out_files)
+      stop(sprintf("No transcript count results found in %s, folder needs to contain count.mtx (Oarfish quantification)", outdir))
     }
   }
-  if (length(samples) == 1) {
-    return(sce_list[[1]])
+
+}
+
+#' Add rowRanges by rownames to \code{SummarizedExperiment} object
+#' Assumes rownames are transcript_ids
+#' Assumes transcript_id is present in the annotation file
+#' @importFrom SummarizedExperiment rowRanges rowRanges<-
+#' @keywords internal
+addRowRanges <- function(sce, annotation, outdir) {
+  if (is.null(S4Vectors::metadata(sce)$OutputFiles)) {
+    S4Vectors::metadata(sce)$OutputFiles <- list()
   }
-  return(sce_list)
+
+  if (file.exists(file.path(outdir, "isoform_annotated.gtf"))) {
+    novel_annotation <- file.path(outdir, "isoform_annotated.gtf")
+  } else if (file.exists(file.path(outdir, "isoform_annotated.gff3"))) {
+    novel_annotation <- file.path(outdir, "isoform_annotated.gff3")
+  } else if (!is.null(S4Vectors::metadata(sce)$OutputFiles$isoform_annotated)) {
+    novel_annotation <- S4Vectors::metadata(sce)$OutputFiles$isoform_annotated
+  } else {
+    message(sprintf("isoform_annotated.gff3/gtf file not found in %s, this can be safely ignored if the pipeline was run with do_isoform_identification = FALSE", outdir))
+  }
+
+  annotation_grl <- get_GRangesList(annotation)
+  if (!is.null(novel_annotation)) {
+    novel_grl <- get_GRangesList(novel_annotation)
+    annotation_grl <- c(annotation_grl,
+      novel_grl[!names(novel_grl) %in% names(annotation_grl)]
+    )
+    S4Vectors::metadata(sce)$OutputFiles$isoform_annotated <- novel_annotation
+  }
+
+  if (any(!rownames(sce) %in% names(annotation_grl))) {
+    warning(sprintf(
+      "Some transcript(s) are not recorded in the annotation file: %s",
+      paste(
+        head(rownames(sce)[!rownames(sce) %in% names(annotation_grl)]),
+        collapse = ", "
+      )
+    ))
+  }
+
+  annotation_grl <- annotation_grl[names(annotation_grl) %in% rownames(sce)]
+  SummarizedExperiment::rowRanges(sce)[names(annotation_grl)] <- annotation_grl
+  return(sce)
 }
 
 #' Create \code{SummarizedExperiment} object from \code{FLAMES} output folder
@@ -478,27 +511,16 @@ create_sce_from_dir <- function(outdir, annotation) {
 #' @example inst/examples/pipeline_example.R
 #' @export
 create_se_from_dir <- function(outdir, annotation) {
-  if (file.exists(file.path(outdir, "isoform_annotated.gtf"))) {
-    isoform_annotated <- file.path(outdir, "isoform_annotated.gtf")
-  } else if (file.exists(file.path(outdir, "isoform_annotated.gff3"))) {
-    isoform_annotated <- file.path(outdir, "isoform_annotated.gff3")
-  } else {
-    stop("Missing isoform_annotated.gff3/gtf file")
-  }
   out_files <- list(
     counts = file.path(outdir, "transcript_count.csv.gz"),
-    isoform_annotated = isoform_annotated,
     outdir = outdir,
+    annotation = annotation,
     transcript_assembly = file.path(outdir, "transcript_assembly.fa"),
     align_bam = file.path(outdir, "align2genome.bam"),
     realign2transcript = file.path(outdir, "realign2transcript.bam"),
     tss_tes = file.path(outdir, "tss_tes.bedgraph")
   )
-  if (!missing("annotation") && !is.null(annotation)) {
-    out_files[["annotation"]] <- annotation
-    load_genome_anno <- rtracklayer::import(annotation, feature.type = c("exon", "utr"))
-    return(generate_bulk_summarized(out_files, load_genome_anno = load_genome_anno))
-  } else {
-    return(generate_bulk_summarized(out_files))
-  }
+  se <- generate_bulk_summarized(out_files) |>
+    addRowRanges(annotation, outdir)
+  return(se)
 }

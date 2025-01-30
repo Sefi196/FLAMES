@@ -4,12 +4,16 @@
 \alias{create_sce_from_dir}
 \title{Create \code{SingleCellExperiment} object from \code{FLAMES} output folder}
 \usage{
-create_sce_from_dir(outdir, annotation)
+create_sce_from_dir(outdir, annotation, quantification = "FLAMES")
 }
 \arguments{
 \item{outdir}{The folder containing \code{FLAMES} output files}
 
-\item{annotation}{(Optional) the annotation file that was used to produce the output files}
+\item{annotation}{the annotation file that was used to produce the output files}
+
+\item{quantification}{(Optional)  the quantification method used to generate the 
+output files (either "FLAMES" or "Oarfish".). If not specified, the function will 
+attempt to determine the quantification method.}
 }
 \value{
 a list of \code{SingleCellExperiment} objects if multiple transcript matrices were
