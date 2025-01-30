@@ -4,7 +4,7 @@
 \alias{plot_spatial_pie}
 \title{Plot spatial pie chart}
 \usage{
-plot_spatial_pie(spe, features, assay_type = "counts")
+plot_spatial_pie(spe, features, assay_type = "counts", opacity = 50)
 }
 \arguments{
 \item{spe}{The SpatialExperiment object.}

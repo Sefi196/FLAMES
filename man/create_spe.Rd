@@ -4,7 +4,13 @@
 \alias{create_spe}
 \title{Create a SpatialExperiment object}
 \usage{
-create_spe(sce, spatial_barcode_file, mannual_align_json, image)
+create_spe(
+  sce,
+  spatial_barcode_file,
+  mannual_align_json,
+  image,
+  tissue_positions_file
+)
 }
 \arguments{
 \item{sce}{The SingleCellExperiment object obtained from running the \code{\link{sc_long_pipeline}} function.}

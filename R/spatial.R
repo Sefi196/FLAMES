@@ -13,7 +13,7 @@
 #' @importFrom SummarizedExperiment assays colData rowData rowRanges rowRanges<- colData<-
 #' @importFrom SpatialExperiment SpatialExperiment readImgData imgData imgData<-
 #' @export
-create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image) {
+create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image, tissue_positions_file) {
 
   # Read the full list file
   full_list <- readr::read_table(
@@ -47,9 +47,26 @@ create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image) {
   )
   SummarizedExperiment::rowRanges(spe) <- SummarizedExperiment::rowRanges(sce)
 
-  if ("tissue" %in% names(SummarizedExperiment::colData(spe))) {
+  if (!missing(tissue_positions_file)) {
+    SummarizedExperiment::colData(spe)$in_tissue <- NULL
+    message(sprintf("Reading tissue positions from %s", tissue_positions_file))
+    tissue_positions <- readr::read_csv(
+      tissue_positions_file,
+      col_names = c(
+        "barcode", "in_tissue", "array_row", 
+        "array_col", "pxl_col_in_fullres", "pxl_row_in_fullres"
+      )
+    ) |>
+      dplyr::mutate(barcode = stringr::str_remove(barcode, "-1$"))
+    SummarizedExperiment::colData(spe)$in_tissue <- SummarizedExperiment::colData(spe) |> 
+      as.data.frame() |>
+      tibble::as_tibble(rownames = "barcode") |>
+      dplyr::left_join(tissue_positions, by = "barcode") |>
+      dplyr::mutate(in_tissue = in_tissue == 1) |>
+      dplyr::pull(in_tissue)
+  } else if ("tissue" %in% names(SummarizedExperiment::colData(spe))) {
     SummarizedExperiment::colData(spe)$in_tissue <- SummarizedExperiment::colData(spe)$tissue
-    cat("in_tissue column is set to tissue column from", mannual_align_json, "\n")
+    message(sprintf("in_tissue column is set to tissue column from %s", mannual_align_json))
     cat("in_tissue counts:")
     print(table(SummarizedExperiment::colData(spe)$in_tissue, useNA = "always"))
   } else {
@@ -82,10 +99,16 @@ create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image) {
 #' @importFrom scatterpie geom_scatterpie
 #' @importFrom dplyr mutate
 #' @return A ggplot object.
-plot_spatial_pie <- function(spe, features, assay_type = 'counts') {
+plot_spatial_pie <- function(spe, features, assay_type = 'counts', opacity = 50) {
   if (nrow(imgData(spe)) > 0) {
+    # background_img <- SpatialExperiment::imgData(spe)$data[[1]] |>
+    #   SpatialExperiment::imgRaster()
     background_img <- SpatialExperiment::imgData(spe)$data[[1]] |>
-      SpatialExperiment::imgRaster()
+      SpatialExperiment::imgRaster() |>
+      magick::image_read() |>
+      magick::image_colorize(opacity = opacity, color = "white") |>
+      grDevices::as.raster()
+
     maxX <- dim(background_img)[1]
     maxY <- dim(background_img)[2]
     p1 <- ggplot2::ggplot(mapping = ggplot2::aes(1:maxX, 1:maxY)) +

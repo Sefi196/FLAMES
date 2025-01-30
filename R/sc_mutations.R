@@ -128,7 +128,7 @@ sc_mutations <- function(bam_path, seqnames, positions, indel = FALSE, threads =
             dplyr::mutate(bam_file = sample_bam)
         },
         sample_bam = args_grid$sample_bam, seqname = args_grid$seqname,
-        pos = args_grid$pos, SIMPLIFY = FALSE, 
+        pos = args_grid$pos, SIMPLIFY = FALSE,
         BPPARAM = BiocParallel::MulticoreParam(
           workers = threads, stop.on.error = TRUE, progressbar = TRUE
         )

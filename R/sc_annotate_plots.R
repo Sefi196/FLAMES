@@ -212,7 +212,6 @@ get_top_transcript_ids <- function(sce, gene_id, transcript_ids, n) {
 #' plot_isoforms(scmixology_lib10_transcripts, gene_id = "ENSG00000108107")
 #' 
 #' @importFrom SummarizedExperiment rowRanges rowData
-#' @importFrom ggbio geom_alignment
 #' @importFrom ggplot2 ggplot aes theme_void theme element_line element_text xlim
 #' @importFrom cowplot plot_grid
 #' @importFrom GenomeInfoDb seqnames
