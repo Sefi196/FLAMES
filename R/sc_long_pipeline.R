@@ -500,7 +500,11 @@ addRowRanges <- function(sce, annotation, outdir) {
   }
 
   annotation_grl <- annotation_grl[names(annotation_grl) %in% rownames(sce)]
+  # rowData lost when adding rowRanges
+  # https://github.com/Bioconductor/SummarizedExperiment/issues/81#issuecomment-2632781880
+  rowDataBackup <- SummarizedExperiment::rowData(sce)
   SummarizedExperiment::rowRanges(sce)[names(annotation_grl)] <- annotation_grl
+  SummarizedExperiment::rowData(sce) <- rowDataBackup
   return(sce)
 }
 
