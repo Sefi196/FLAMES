@@ -72,7 +72,6 @@ reference:
       - filter_annotation
       - get_GRangesList
       - demultiplex_sockeye
-      - parse_gff_tree
       - scmixology_lib10
       - scmixology_lib10_transcripts
       - scmixology_lib90

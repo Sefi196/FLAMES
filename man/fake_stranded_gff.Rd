@@ -6,6 +6,9 @@
 \usage{
 fake_stranded_gff(gff_file)
 }
+\value{
+Path to the temporary file with unstranded transcripts converted to '+'.
+}
 \description{
 Check if all the transcript in the annotation is stranded. If not, convert to '+'.
 }

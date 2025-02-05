@@ -94,8 +94,6 @@ find_isoform_bambu <- function(annotation, genome_fa, genome_bam, outdir, config
     file.remove(bambuTempAnnot);
   }
 
-  # isoform_objects <- list(transcript_dict = NULL, transcript_dict_i = parse_gff_tree(isoform_gtf)$transcript_dict)
-  # isoform_objects
 }
 
 #' @importFrom reticulate import_from_path
@@ -144,6 +142,7 @@ find_isoform_flames <- function(annotation, genome_fa, genome_bam, outdir, confi
 
 #' Fake stranded GFF file
 #' @description Check if all the transcript in the annotation is stranded. If not, convert to '+'.
+#' @return Path to the temporary file with unstranded transcripts converted to '+'.
 #' @keywords internal
 fake_stranded_gff <- function(gff_file) {
   # check if all the transcript in the annotation is stranded

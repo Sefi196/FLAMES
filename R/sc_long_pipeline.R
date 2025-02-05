@@ -464,6 +464,7 @@ create_sce_from_dir <- function(outdir, annotation, quantification = "FLAMES") {
 #' Assumes rownames are transcript_ids
 #' Assumes transcript_id is present in the annotation file
 #' @importFrom SummarizedExperiment rowRanges rowRanges<-
+#' @return a \code{SummarizedExperiment} object with rowRanges added
 #' @keywords internal
 addRowRanges <- function(sce, annotation, outdir) {
   if (is.null(S4Vectors::metadata(sce)$OutputFiles)) {

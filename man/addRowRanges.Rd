@@ -8,6 +8,9 @@ Assumes transcript_id is present in the annotation file}
 \usage{
 addRowRanges(sce, annotation, outdir)
 }
+\value{
+a \code{SummarizedExperiment} object with rowRanges added
+}
 \description{
 Add rowRanges by rownames to \code{SummarizedExperiment} object
 Assumes rownames are transcript_ids
