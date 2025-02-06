@@ -5,3 +5,13 @@ Changes in version 1.3.4 (2022-10-26)
 + Individual steps are exported as functions
 + Added a plotting function (sc_annotate)
 + Added support for using bambu for isoform discovery
+Changes in version 1.8.0 (2023-10-2)
++ Updated find_barcode to use flexiplex and cutadapt
++ Added blaze for demultiplexing without known barcodes
++ Added gene quantification
+Changes in version 2.0.0 (2024-10-29)
++ Added coverage visualization (plot_coverage)
++ Added find_variant
++ Reimplement sc_mutations with Rcpp
++ Added Oarfish as a quantification option
++ Added plot_demultiplex for visualizing find_barcode results

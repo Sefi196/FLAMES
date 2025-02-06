@@ -1,10 +1,12 @@
 #' @importFrom reticulate import_from_path dict
 #' @importFrom basilisk basiliskRun
-parse_realigned_bam <- function(bam_in, fa_idx_f, min_sup_reads,
+parse_realigned_bam <- function(
+    bam_in, fa_idx_f, min_sup_reads,
     min_tr_coverage, min_read_coverage, bc_file) {
-  ret <- basiliskRun(env = flames_env,
+  ret <- basiliskRun(
+    env = flames_env,
     fun = function(bam_in, fa_idx_f, min_sup_reads,
-        min_tr_coverage, min_read_coverage, bc_file) {
+                   min_tr_coverage, min_read_coverage, bc_file) {
       python_path <- system.file("python", package = "FLAMES")
       count <- reticulate::import_from_path("count_tr", python_path)
       ret <- count$parse_realigned_bam(
@@ -47,12 +49,12 @@ wrt_tr_to_csv <- function(
 #'
 #' @details
 #' After the genome alignment step (\code{do_genome_align}), the alignment file will be parsed to
-#' generate the per gene UMI count matrix. For each gene in the annotation file, the number of reads 
-#' overlapping with the gene’s genomic coordinates will be assigned to that gene. If a read overlaps 
+#' generate the per gene UMI count matrix. For each gene in the annotation file, the number of reads
+#' overlapping with the gene’s genomic coordinates will be assigned to that gene. If a read overlaps
 #' multiple genes, it will be assigned to the gene with the highest number of overlapping nucleotides.
-#' If exon coordinates are included in the provided annotation, the decision will first consider the 
-#' number of nucleotides aligned to the exons of each gene. In cases of a tie, the overlap with introns 
-#' will be used as a tiebreaker. If there is still a tie after considering both exons and introns, 
+#' If exon coordinates are included in the provided annotation, the decision will first consider the
+#' number of nucleotides aligned to the exons of each gene. In cases of a tie, the overlap with introns
+#' will be used as a tiebreaker. If there is still a tie after considering both exons and introns,
 #' a random gene will be selected from the tied candidates.
 #'
 #' After the read-to-gene assignment, the per gene UMI count matrix will be generated.
@@ -122,6 +124,64 @@ quantify_gene <- function(annotation, outdir, infq, n_process, pipeline = "sc_si
   )
 }
 
+#' Add gene counts to a \code{SingleCellExperiment} object
+#' @description Add gene counts to a \code{SingleCellExperiment} object
+#' as an \code{altExps} slot named \code{gene}.
+#' @param sce A \code{SingleCellExperiment} object.
+#' @param gene_count_file The file path to the gene count file. If missing,
+#' the function will try to find the gene count file in the output directory.
+#' @importFrom SingleCellExperiment SingleCellExperiment altExps
+#' @importFrom S4Vectors metadata
+#' @examples
+#' # Set up a mock SingleCellExperiment object
+#' sce <- SingleCellExperiment::SingleCellExperiment(
+#'   assays = list(counts = matrix(0, nrow = 10, ncol = 10))
+#' )
+#' colnames(sce) <- paste0('cell', 1:10)
+#' # Set up a mock gene count file
+#' gene_count_file <- tempfile()
+#' gene_mtx <- matrix(1:10, nrow = 2, ncol = 5)
+#' colnames(gene_mtx) <- paste0('cell', 1:5)
+#' rownames(gene_mtx) <- c("gene1", "gene2")
+#' write.csv(gene_mtx, gene_count_file)
+#' # Add gene counts to the SingleCellExperiment object
+#' sce <- add_gene_counts(sce, gene_count_file)
+#' # verify the gene counts are added
+#' SingleCellExperiment::altExps(sce)$gene
+#' @export
+add_gene_counts <- function(sce, gene_count_file) {
+  if (missing(gene_count_file)) {
+    tryCatch(
+      {
+        gene_count_file <- file.path(
+          S4Vectors::metadata(sce)$inputs$outdir,
+          "gene_count.csv"
+        )
+      },
+      error = function(e) {
+        stop("Error when finding gene count file:\n", e$message)
+      }
+    )
+    if (!file.exists(gene_count_file)) {
+      stop("Gene count file not found.")
+    }
+  }
+  mtx <- read.csv(gene_count_file, row.names = 1)
+  mtx <- mtx[, colnames(mtx) %in% colnames(sce)] |>
+    as.matrix()
+  gene_mtx <- matrix(0, nrow = nrow(mtx), ncol = ncol(sce))
+  gene_mtx[, match(colnames(mtx), colnames(sce))] <- mtx
+
+  gene <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = gene_mtx)
+  )
+  colnames(gene) <- colnames(sce)
+  rownames(gene) <- rownames(mtx)
+
+  SingleCellExperiment::altExps(sce)$gene <- gene
+  return(sce)
+}
+
 #' FLAMES Transcript quantification
 #' @description Calculate the transcript count matrix by parsing the re-alignment file.
 #' @param annotation The file path to the annotation file in GFF3 format
@@ -171,7 +231,7 @@ quantify_transcript_flames <- function(annotation, outdir, config, pipeline = "s
   }
 
   known_transcripts <- annotation |>
-    rtracklayer::import(feature.type = 'transcript') |>
+    rtracklayer::import(feature.type = "transcript") |>
     S4Vectors::mcols() |>
     (\(x) x$transcript_id)()
 
@@ -287,7 +347,8 @@ parse_oarfish_sc_output <- function(oarfish_out, annotation, outdir) {
   }
   if (!is.null(novel_annotation)) {
     novel_grl <- get_GRangesList(novel_annotation)
-    annotation_grl <- c(annotation_grl,
+    annotation_grl <- c(
+      annotation_grl,
       novel_grl[!names(novel_grl) %in% names(annotation_grl)]
     )
   }
@@ -320,8 +381,9 @@ parse_oarfish_bulk_output <- function(oarfish_outs, sample_names) {
   SummarizedExperiment::SummarizedExperiment(assays = list(counts = mtx))
 }
 
-quantify_transcript_oarfish <- function(annotation, outdir, config,
-  pipeline = "sc_single_sample", samples) {
+quantify_transcript_oarfish <- function(
+    annotation, outdir, config,
+    pipeline = "sc_single_sample", samples) {
   realign_bam <- list.files(outdir)[grepl("_?realign2transcript\\.bam$", list.files(outdir))]
   if (pipeline == "sc_single_sample") {
     oarfish_out <- run_oarfish(realign_bam, outdir, threads = config$pipeline_parameters$threads)

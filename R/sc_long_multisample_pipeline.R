@@ -337,6 +337,18 @@ sc_long_multisample_pipeline <- function(annotation, fastqs, outdir, genome_fa,
     cat("#### Generating transcript count matrix\n")
     sces <- quantify_transcript(annotation = annotation, outdir = outdir,
       config = config, pipeline = "sc_multi_sample", samples = names(fastqs))
+
+    if (config$pipeline_parameters$do_gene_quantification) {
+      sces <- sapply(names(sces), \(sce) {
+        tryCatch({
+          add_gene_counts(sces[[sce]], file.path(outdir, paste(sce, "gene_count.csv", sep = "_")))
+        }, error = function(e) {
+          warning(sprintf("Could not add gene counts to %s: %s", sce, e$message))
+          return(sces[[sce]])
+        })
+      }, simplify = FALSE)
+    }
+
     res <- list(
       "metadata" = metadata,
       "sces" = sces

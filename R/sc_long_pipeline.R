@@ -327,8 +327,18 @@ sc_long_pipeline <- function(
       config = config
     )
     sce@metadata <- c(sce@metadata, metadata)
+
+    if (config$pipeline_parameters$do_gene_quantification) {
+      tryCatch({
+        sce <- add_gene_counts(sce)
+      }, error = function(e) {
+        warning("Failed to add gene counts to SingleCellExperiment object")
+      })
+    }
+
     return(sce)
   }
+
   return(metadata)
 }
 

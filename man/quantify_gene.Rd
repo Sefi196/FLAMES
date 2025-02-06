@@ -39,12 +39,12 @@ Calculate the per gene UMI count matrix by parsing the genome alignment file.
 }
 \details{
 After the genome alignment step (\code{do_genome_align}), the alignment file will be parsed to
-generate the per gene UMI count matrix. For each gene in the annotation file, the number of reads 
-overlapping with the gene’s genomic coordinates will be assigned to that gene. If a read overlaps 
+generate the per gene UMI count matrix. For each gene in the annotation file, the number of reads
+overlapping with the gene’s genomic coordinates will be assigned to that gene. If a read overlaps
 multiple genes, it will be assigned to the gene with the highest number of overlapping nucleotides.
-If exon coordinates are included in the provided annotation, the decision will first consider the 
-number of nucleotides aligned to the exons of each gene. In cases of a tie, the overlap with introns 
-will be used as a tiebreaker. If there is still a tie after considering both exons and introns, 
+If exon coordinates are included in the provided annotation, the decision will first consider the
+number of nucleotides aligned to the exons of each gene. In cases of a tie, the overlap with introns
+will be used as a tiebreaker. If there is still a tie after considering both exons and introns,
 a random gene will be selected from the tied candidates.
 
 After the read-to-gene assignment, the per gene UMI count matrix will be generated.

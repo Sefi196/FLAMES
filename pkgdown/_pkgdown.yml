@@ -65,6 +65,7 @@ reference:
       - plot_spatial_pie
   - title: Miscellaneous
     contents:
+      - add_gene_counts
       - create_config
       - create_sce_from_dir
       - create_se_from_dir
