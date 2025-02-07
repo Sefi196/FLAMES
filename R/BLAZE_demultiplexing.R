@@ -12,7 +12,6 @@
 #' @return A \code{data.frame} summarising the reads aligned. Other outputs are written to disk. 
 #' The details of the output files can be found at https://github.com/shimlab/BLAZE.
 #'
-#' @importFrom parallel detectCores
 #' @export
 #' @examples
 #' temp_path <- tempfile()

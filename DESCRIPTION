@@ -52,7 +52,6 @@ Imports:
     magick,
     Matrix,
     MatrixGenerics,
-    parallel,
     readr,
     reticulate,
     Rsamtools,
