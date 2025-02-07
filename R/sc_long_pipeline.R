@@ -438,12 +438,9 @@ create_sce_from_dir <- function(outdir, annotation, quantification = "FLAMES") {
         annotation = annotation
       )
       generate_sc_singlecell(out_files) |>
-        addRowRanges(annotation, outdir)
+        addRowRanges(annotation, outdir) |>
+        setNames(stringr::str_remove(x, "_?transcript_count.csv.gz$"))
     })
-    if (length(samples) == 1) {
-      return(sce_list[[1]])
-    }
-    return(sce_list)
 
   } else if (length(samples_oarfish) > 0 && (missing(quantification) || quantification == "Oarfish")) {
     sce_list <- lapply(samples_oarfish, \(x) {
@@ -452,11 +449,8 @@ create_sce_from_dir <- function(outdir, annotation, quantification = "FLAMES") {
         annotation = annotation,
         outdir = outdir
       )
-    })
-    if (length(samples_oarfish) == 1) {
-      return(sce_list[[1]])
-    }
-    return(sce_list)
+    }) |>
+      setNames(samples_oarfish)
 
   } else {
     if (missing(quantification)) {
@@ -468,6 +462,25 @@ create_sce_from_dir <- function(outdir, annotation, quantification = "FLAMES") {
     }
   }
 
+  if (length(sce_list) == 1) {
+    tryCatch({
+      sce_list[[1]] <- add_gene_counts(sce_list[[1]], file.path(outdir, "gene_count.csv"))
+    }, error = function(e) {
+      message(sprintf("Gene counts not added to SingleCellExperiment object: %s", e$message))
+    })
+    return(sce_list[[1]])
+  } else {
+    sce_list <- sapply(names(sce_list), \(x) {
+      tryCatch({
+        sce_list[[x]] <- add_gene_counts(sce_list[[x]], paste(x, "gene_count.csv", sep = "_"))
+      }, error = function(e) {
+        message(sprintf("Gene counts not added to sample %s: %s", x, e$message))
+      })
+    }, simplify = FALSE)
+  }
+
+  names(sce_list) <- basename(names(sce_list))
+  return(sce_list)
 }
 
 #' Add rowRanges by rownames to \code{SummarizedExperiment} object

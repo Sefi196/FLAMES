@@ -4,20 +4,15 @@
 #' @return Exit code of cutadapt
 #'
 #' @examples
-#' \dontrun{
-#'  cutadapt("-h")
-#' }
+#' cutadapt("-h")
 #' @importFrom reticulate import_from_path
 #' @importFrom basilisk basiliskRun
 #' @export
 cutadapt <- function(args) {
   basiliskRun(env = flames_env, fun = function(x) {
-    subprocess <- reticulate::import("subprocess")
-    builtin <- reticulate::import_builtins()
-    output <- subprocess$check_output(paste(c("cutadapt", x), collapse=" "), shell=TRUE)
-    output_str <- builtin$str(output, encoding="utf-8")
-    builtin$print(output_str)
-    return(output_str)
+    # stdout / stderr TRUE: capture output, "": print to console
+    output <- base::system2("cutadapt", x, stdout = TRUE, stderr = "")
+    return(output)
   }, x = args)
 }
 
