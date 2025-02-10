@@ -561,25 +561,25 @@ mutation_positions_single <- function(mutations, annotation_grange, type, verbos
 #' @param type character(1): the type of position to calculate. Can be one of "TSS" (distance from the
 #' transcription start site), "TES" (distance from the transcription end site), or "relative" (relative
 #' position within the gene body).
-#' @param bin logical(1): whether to bin the relative positions into 100 bins. Only applicable when 
+#' @param bin logical(1): whether to bin the relative positions into 100 bins. Only applicable when
 #' \code{type = "relative"}.
 #' @param by character(1): the column name in the annotation to match with the gene annotation.
 #' E.g. \code{c("region" = "gene_name")} to match the `region` column in the mutations with the
 #' `gene_name` column in the annotation.
 #' @param threads integer(1): number of threads to use.
-#' @return A list of numeric vector of positions of each mutation within the gene body. When \code{type = "relative"},
+#' @return A numeric vector of positions of each mutation within the gene body. When \code{type = "relative"},
 #' the positions are normalized to the gene length, ranging from 0 (start of the gene) to 1 (end of the gene).
 #' When \code{type = "TSS"} / \code{type = "TES"}, the distances from the transcription start
-#' / end site. If \code{bin = FALSE}, a list of numeric vectors of relative positions of each mutation within
-#' the gene body. If \code{bin = TRUE}, a numeric vector of length 100 of the number of mutations in each bin.
-#' The postions are split into lists by the \code{by} column (e.g. gene name) in the mutations.
+#' / end site. If \code{bin = TRUE}, and \code{type = "relative"}, the relative positions are binned into 100
+#' bins along the gene body, and the output is a matrix with the number of mutations in each bin, the
+#' rows are named by the \code{by} column (e.g. gene name).
 #' @examples
 #' variants <- data.frame(
 #'   seqnames = rep("chr14", 8),
 #'   pos = c(1084, 1085, 1217, 1384, 2724, 2789, 5083, 5147),
 #'   region = rep("Rps24", 8)
 #' )
-#' positions <- 
+#' positions <-
 #'  mutation_positions(
 #'    mutations = variants,
 #'    annotation = system.file("extdata", "rps24.gtf.gz", package = "FLAMES")
@@ -589,13 +589,17 @@ mutation_positions_single <- function(mutations, annotation_grange, type, verbos
 #' @importFrom BiocParallel MulticoreParam bplapply
 #' @importFrom S4Vectors mcols
 #' @export
-mutation_positions <- function(mutations, annotation, type = "relative", bin = FALSE, by = c("region" = "gene_name"), threads = 1){
+mutation_positions <- function(mutations, annotation, type = "relative", bin = FALSE, by = c("region" = "gene_name"), threads = 1) {
   if (!length(by) == 1) {
     stop("'by' must be a character vector of length 1")
   }
   if (is.null(names(by))) {
     names(by) <- by
   }
+
+  stopifnot(
+    "Some mutations do not have a value for the 'by' column" = !any(is.na(mutations[, names(by)]))
+  )
 
   stopifnot(
     "'type' must be one of 'TSS', 'TES', 'relative'" = type %in% c("TSS", "TES", "relative")
@@ -608,10 +612,19 @@ mutation_positions <- function(mutations, annotation, type = "relative", bin = F
     annotation_grange <- annotation
   }
 
-  mutations <- mutations |> 
-    dplyr::mutate(region = mutations[, names(by)]) |>
-    dplyr::filter(!is.na(region))
-  mutations_split <- split(mutations, mutations$region)
+  stopifnot(
+    "Some gene(s) are not found in the annotation" =
+      all(mutations[, names(by), drop = TRUE] %in% S4Vectors::mcols(annotation_grange)[, by])
+  )
+
+  mutations_split <- mutations |>
+    dplyr::mutate(row_id = row_number(),
+      region = mutations[, names(by), drop = TRUE]) |>
+    split(mutations[, names(by), drop = TRUE])
+  # idx to map output back to original order of mutations
+  mutations_split_idx <- lapply(mutations_split, function(x) x$row_id) |>
+    unlist() |>
+    match(x = seq_len(nrow(mutations)), table = _)
 
   coverages <- tryCatch({
     BiocParallel::bplapply(
@@ -638,11 +651,13 @@ mutation_positions <- function(mutations, annotation, type = "relative", bin = F
 
   if (!bin) {
     names(coverages) <- names(mutations_split)
+    coverages <- unlist(coverages)
+    coverages <- coverages[mutations_split_idx]
     return(coverages)
   }
 
   # sum up all coverages
-  total_coverage <- do.call(rbind, coverages) |>
-    colSums()
+  total_coverage <- do.call(rbind, coverages)
+  rownames(total_coverage) <- names(mutations_split)
   return(total_coverage)
 }

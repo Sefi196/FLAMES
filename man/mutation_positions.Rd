@@ -23,7 +23,7 @@ mutation_positions(
 transcription start site), "TES" (distance from the transcription end site), or "relative" (relative
 position within the gene body).}
 
-\item{bin}{logical(1): whether to bin the relative positions into 100 bins. Only applicable when 
+\item{bin}{logical(1): whether to bin the relative positions into 100 bins. Only applicable when
 \code{type = "relative"}.}
 
 \item{by}{character(1): the column name in the annotation to match with the gene annotation.
@@ -33,12 +33,12 @@ E.g. \code{c("region" = "gene_name")} to match the `region` column in the mutati
 \item{threads}{integer(1): number of threads to use.}
 }
 \value{
-A list of numeric vector of positions of each mutation within the gene body. When \code{type = "relative"},
+A numeric vector of positions of each mutation within the gene body. When \code{type = "relative"},
 the positions are normalized to the gene length, ranging from 0 (start of the gene) to 1 (end of the gene).
 When \code{type = "TSS"} / \code{type = "TES"}, the distances from the transcription start
-/ end site. If \code{bin = FALSE}, a list of numeric vectors of relative positions of each mutation within
-the gene body. If \code{bin = TRUE}, a numeric vector of length 100 of the number of mutations in each bin.
-The postions are split into lists by the \code{by} column (e.g. gene name) in the mutations.
+/ end site. If \code{bin = TRUE}, and \code{type = "relative"}, the relative positions are binned into 100
+bins along the gene body, and the output is a matrix with the number of mutations in each bin, the
+rows are named by the \code{by} column (e.g. gene name).
 }
 \description{
 Given a set of mutations and gene annotation, calculate the position of each mutation
@@ -50,7 +50,7 @@ variants <- data.frame(
   pos = c(1084, 1085, 1217, 1384, 2724, 2789, 5083, 5147),
   region = rep("Rps24", 8)
 )
-positions <- 
+positions <-
  mutation_positions(
    mutations = variants,
    annotation = system.file("extdata", "rps24.gtf.gz", package = "FLAMES")
