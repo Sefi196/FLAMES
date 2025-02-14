@@ -15,7 +15,6 @@
 #' @importFrom SpatialExperiment SpatialExperiment readImgData imgData imgData<-
 #' @export
 create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image, tissue_positions_file) {
-
   # Read the full list file
   full_list <- readr::read_table(
     spatial_barcode_file,
@@ -28,7 +27,7 @@ create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image, tis
     align_df <- jsonlite::fromJSON(mannual_align_json)$oligo |>
       tidyr::as_tibble() |>
       dplyr::mutate(row = row + 1, col = col + 1)
-    full_list <- dplyr::left_join(align_df, full_list, by = c('row', 'col'))
+    full_list <- dplyr::left_join(align_df, full_list, by = c("row", "col"))
   }
 
   # add spatial info to colData
@@ -54,12 +53,12 @@ create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image, tis
     tissue_positions <- readr::read_csv(
       tissue_positions_file,
       col_names = c(
-        "barcode", "in_tissue", "array_row", 
+        "barcode", "in_tissue", "array_row",
         "array_col", "pxl_col_in_fullres", "pxl_row_in_fullres"
       )
     ) |>
       dplyr::mutate(barcode = stringr::str_remove(barcode, "-1$"))
-    SummarizedExperiment::colData(spe)$in_tissue <- SummarizedExperiment::colData(spe) |> 
+    SummarizedExperiment::colData(spe)$in_tissue <- SummarizedExperiment::colData(spe) |>
       as.data.frame() |>
       tibble::as_tibble(rownames = "barcode") |>
       dplyr::left_join(tissue_positions, by = "barcode") |>
@@ -97,52 +96,41 @@ create_spe <- function(sce, spatial_barcode_file, mannual_align_json, image, tis
 #' @param features The features to plot.
 #' @param assay_type The assay that contains the given features.
 #' @param opacity The opacity of the background tissue image.
+#' @param grayscale Whether to convert the background image to grayscale.
+#' @param pie_scale The size of the pie charts.
+#' @param color_palette Named vector of colors for each feature.
 #' @importFrom ggplot2 ggplot annotation_raster coord_fixed theme_void aes
 #' @importFrom scatterpie geom_scatterpie
 #' @importFrom magick image_read image_colorize
 #' @importFrom grDevices as.raster
 #' @importFrom dplyr mutate
+#' @importFrom RColorBrewer brewer.pal
+#' @importFrom SummarizedExperiment assay
+#' @keywords internal
 #' @return A ggplot object.
-plot_spatial_pie <- function(spe, features, assay_type = "counts", opacity = 50) {
-  if (nrow(imgData(spe)) > 0) {
-    # background_img <- SpatialExperiment::imgData(spe)$data[[1]] |>
-    #   SpatialExperiment::imgRaster()
-    background_img <- SpatialExperiment::imgData(spe)$data[[1]] |>
-      SpatialExperiment::imgRaster() |>
-      magick::image_read() |>
-      magick::image_colorize(opacity = opacity, color = "white") |>
-      grDevices::as.raster()
-
-    maxX <- dim(background_img)[1]
-    maxY <- dim(background_img)[2]
-    p1 <- ggplot2::ggplot(mapping = ggplot2::aes(1:maxX, 1:maxY)) +
-      ggplot2::annotation_raster(background_img, 
-        xmin = 1, xmax = maxX, ymin = 1, ymax = maxY)
-  } else {
-    maxX <- max(plot_d$imageX)
-    minX <- min(plot_d$imageX)
-    maxY <- max(plot_d$imageY)
-    minY <- min(plot_d$imageY)
-    p1 <- ggplot2::ggplot(mapping = ggplot2::aes(minX:maxX, minX:maxY))
+plot_spatial_pie <- function(
+    spe, features, assay_type = "counts", color_palette,
+    opacity = 50, grayscale = TRUE, pie_scale = 0.8) {
+  if (missing(color_palette)) {
+    color_palette <- RColorBrewer::brewer.pal(8, "Set2") |>
+      head(length(features)) |>
+      setNames(features)
   }
 
-  color_palette <- RColorBrewer::brewer.pal(8, "Set2") |>
-    head(length(features)) |>
-    setNames(features)
-
-  spe <- spe[features, ]
-  plot_d <- SpatialExperiment::spatialCoords(spe) |>
-    as.data.frame() |>
-    dplyr::mutate(imageY = maxY - imageY)
-  plot_d <- cbind(plot_d, as.matrix(t(SummarizedExperiment::assay(spe, assay_type))))
-  colnames(plot_d) <- c('imageX', 'imageY', features)
-  p1 + 
-    scatterpie::geom_scatterpie(
-      aes(x = imageX, y = imageY), data = plot_d, 
-      cols = features, pie_scale = 0.3, color = NA) +
+  feature <- SummarizedExperiment::assay(spe, assay_type)[features, , drop = FALSE] |>
+    as.matrix() |>
+    t() |>
+    as.data.frame()
+  plot_spatial(spe,
+    opacity = opacity, grayscale = grayscale,
+    feature = feature,
+    gglayerFunc = scatterpie::geom_scatterpie,
+    aes = ggplot2::aes(x = imageX, y = imageY),
+    cols = features, pie_scale = pie_scale, color = NA
+  ) +
     ggplot2::scale_fill_manual(values = color_palette) +
-    coord_fixed() +
-    theme_void() +
+    ggplot2::coord_fixed() +
+    ggplot2::theme_void() +
     ggplot2::theme(legend.position = "none")
 }
 
@@ -152,13 +140,104 @@ plot_spatial_pie <- function(spe, features, assay_type = "counts", opacity = 50)
 #' @param spe The SpatialExperiment object.
 #' @param isoforms The isoforms to plot.
 #' @param assay_type The assay that contains the given features. E.g. 'counts', 'logcounts'.
+#' @param color_palette Named vector of colors for each isoform.
+#' @param ... Additional arguments to pass to \code{\link{plot_spatial_pie}}, including \code{opacity}, \code{grayscale}, \code{pie_scale}.
 #' @return A ggplot object.
 #' @importFrom cowplot plot_grid
 #' @export
-plot_spatial_isoform <- function(spe, isoforms, assay_type = 'counts') {
-  colors <- RColorBrewer::brewer.pal(8, "Set2") |>
-    head(length(isoforms))
-  isoform_plot <- plot_isoforms(spe, transcript_ids = isoforms, colors = colors)
-  pie_plot <- plot_spatial_pie(spe, isoforms, assay_type)
+plot_spatial_isoform <- function(spe, isoforms, assay_type = "counts", color_palette, ...) {
+  if (missing(color_palette)) {
+    color_palette <- RColorBrewer::brewer.pal(8, "Set2") |>
+      head(length(isoforms))
+  }
+  isoform_plot <- plot_isoforms(spe, transcript_ids = isoforms, colors = color_palette)
+  pie_plot <- plot_spatial_pie(spe, isoforms,
+    assay_type = assay_type,
+    color_palette = color_palette, ...
+  )
   cowplot::plot_grid(pie_plot, isoform_plot, ncol = 1, rel_heights = c(4, 1))
+}
+
+#' Plot feature on spatial image
+#'
+#' @description This function plots a spatial point plot for given feature
+#' @param spe The SpatialExperiment object.
+#' @param feature The feature to plot. Could be either a feature name or index 
+#' present in the assay or a numeric vector of length nrow(spe).
+#' @param assay_type The assay that contains the given features. E.g. 'counts', 'logcounts'.
+#' @param opacity The opacity of the background tissue image.
+#' @param grayscale Whether to convert the background image to grayscale.
+#' @param size The size of the points.
+#' @param color The maximum color for the feature. Minimum color is transparent.
+#' @param ... Additional arguments to pass to \code{\link[ggplot2]{geom_point}}.
+#' @return A ggplot object.
+#' @importFrom cowplot plot_grid
+#' @export
+plot_spatial_feature <- function(
+    spe, feature, opacity = 50, grayscale = TRUE, size = 1,
+    assay_type = "counts", color = "red", ...) {
+  stopifnot("feature must be either length 1 or nrow(spe)" = length(feature) == 1 || length(feature) == nrow(spe))
+  if (length(feature) == 1) {
+    if (is.character(feature) || is.numeric(feature)) {
+      feature <- SummarizedExperiment::assay(spe, assay_type)[feature, , drop = TRUE]
+    } else {
+      stop(sprintf("Invalid feature type: %s", class(feature)))
+    }
+  }
+  # othwerwise, use the feature as is
+
+  plot_spatial(spe = spe, opacity = opacity, grayscale = grayscale,
+    feature = feature, gglayerFunc = ggplot2::geom_point,
+    aes = ggplot2::aes(x = imageX, y = imageY, alpha = feature), col = color, size = size
+  ) +
+    ggplot2::geom_point(
+      data = tibble(
+        x = SpatialExperiment::spatialCoords(spe)[1, "imageX"],
+        y = SpatialExperiment::spatialCoords(spe)[1, "imageY"],
+        feature = feature
+      ),
+      ggplot2::aes(x = x, y = y, col = feature), alpha = 0
+    ) +
+    guides(alpha = "none") +
+    scale_alpha_continuous(range = c(0, 1)) +
+    scale_colour_gradient(low = "white", high = color)
+}
+
+plot_spatial <- function(
+    spe, opacity, grayscale = TRUE, feature, gglayerFunc = ggplot2::geom_point,
+    aes = ggplot2::aes(x = imageX, y = imageY, color = feature), ...) {
+  stopifnot("No image data found in the SpatialExperiment object" = nrow(imgData(spe)) > 0)
+  background_img <- SpatialExperiment::imgData(spe)$data[[1]] |>
+    SpatialExperiment::imgRaster() |>
+    magick::image_read()
+  if (grayscale) {
+    background_img <- background_img |>
+      magick::image_quantize(colorspace = "gray")
+  }
+  if (!missing(opacity)) {
+    background_img <- background_img |>
+      magick::image_colorize(opacity = opacity, color = "white")
+  }
+  background_img <- grDevices::as.raster(background_img)
+
+  maxX <- dim(background_img)[1]
+  maxY <- dim(background_img)[2]
+  p1 <- ggplot2::ggplot(mapping = ggplot2::aes(1:maxX, 1:maxY)) +
+    ggplot2::annotation_raster(background_img,
+      xmin = 1, xmax = maxX, ymin = 1, ymax = maxY
+    )
+
+  plot_d <- SpatialExperiment::spatialCoords(spe) |>
+    as.data.frame() |>
+    dplyr::mutate(imageY = maxY - imageY)
+  if (is.null(dim(feature))) {
+    plot_d <- cbind(plot_d, feature = feature)
+  } else {
+    plot_d <- cbind(plot_d, feature)
+  }
+
+  p1 +
+    gglayerFunc(
+      data = plot_d, aes, ...
+    )
 }

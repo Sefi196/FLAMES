@@ -4,7 +4,7 @@
 \alias{plot_spatial_isoform}
 \title{Plot spatial pie chart of isoforms}
 \usage{
-plot_spatial_isoform(spe, isoforms, assay_type = "counts")
+plot_spatial_isoform(spe, isoforms, assay_type = "counts", color_palette, ...)
 }
 \arguments{
 \item{spe}{The SpatialExperiment object.}
@@ -12,6 +12,10 @@ plot_spatial_isoform(spe, isoforms, assay_type = "counts")
 \item{isoforms}{The isoforms to plot.}
 
 \item{assay_type}{The assay that contains the given features. E.g. 'counts', 'logcounts'.}
+
+\item{color_palette}{Named vector of colors for each isoform.}
+
+\item{...}{Additional arguments to pass to \code{\link{plot_spatial_pie}}, including \code{opacity}, \code{grayscale}, \code{pie_scale}.}
 }
 \value{
 A ggplot object.

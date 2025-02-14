@@ -13,7 +13,9 @@ plot_isoform_heatmap(
   col_low = "#313695",
   col_mid = "#FFFFBF",
   col_high = "#A50026",
-  color_quantile = 1
+  color_quantile = 1,
+  cluster_palette,
+  ...
 )
 }
 \arguments{
@@ -35,6 +37,10 @@ plot_isoform_heatmap(
 \item{col_high}{Color for cells with high expression levels in UMAPs.}
 
 \item{color_quantile}{The lower and upper expression quantile to be displayed bewteen \code{col_low} and \code{col_high}, e.g. with \code{color_quantile = 0.95}, cells with expressions higher than 95\% of other cells will all be shown in \code{col_high}, and cells with expression lower than 95\% of other cells will all be shown in \code{col_low}.}
+
+\item{cluster_palette}{Optional, named vector of colors for the cluster annotations.}
+
+\item{...}{Additional arguments to pass to \code{\link[ComplexHeatmap]{Heatmap}}.}
 }
 \value{
 a \code{ComplexHeatmap}

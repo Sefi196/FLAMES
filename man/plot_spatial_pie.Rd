@@ -4,7 +4,15 @@
 \alias{plot_spatial_pie}
 \title{Plot spatial pie chart}
 \usage{
-plot_spatial_pie(spe, features, assay_type = "counts", opacity = 50)
+plot_spatial_pie(
+  spe,
+  features,
+  assay_type = "counts",
+  color_palette,
+  opacity = 50,
+  grayscale = TRUE,
+  pie_scale = 0.8
+)
 }
 \arguments{
 \item{spe}{The SpatialExperiment object.}
@@ -13,7 +21,13 @@ plot_spatial_pie(spe, features, assay_type = "counts", opacity = 50)
 
 \item{assay_type}{The assay that contains the given features.}
 
+\item{color_palette}{Named vector of colors for each feature.}
+
 \item{opacity}{The opacity of the background tissue image.}
+
+\item{grayscale}{Whether to convert the background image to grayscale.}
+
+\item{pie_scale}{The size of the pie charts.}
 }
 \value{
 A ggplot object.
@@ -21,3 +35,4 @@ A ggplot object.
 \description{
 This function plots a spatial pie chart for given features.
 }
+\keyword{internal}

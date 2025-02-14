@@ -287,6 +287,8 @@ plot_isoforms <- function(sce, gene_id, transcript_ids, n = 4, format = "plot_gr
 #' @param col_mid Color for cells with intermediate expression levels in UMAPs.
 #' @param col_high Color for cells with high expression levels in UMAPs.
 #' @param color_quantile The lower and upper expression quantile to be displayed bewteen \code{col_low} and \code{col_high}, e.g. with \code{color_quantile = 0.95}, cells with expressions higher than 95% of other cells will all be shown in \code{col_high}, and cells with expression lower than 95% of other cells will all be shown in \code{col_low}.
+#' @param cluster_palette Optional, named vector of colors for the cluster annotations.
+#' @param ... Additional arguments to pass to \code{\link[ComplexHeatmap]{Heatmap}}.
 #'
 #' @return a \code{ComplexHeatmap}
 #'
@@ -296,7 +298,7 @@ plot_isoforms <- function(sce, gene_id, transcript_ids, n = 4, format = "plot_gr
 #'   plot_isoform_heatmap(gene = "ENSG00000108107")
 #'
 #' @importFrom SingleCellExperiment rowData logcounts colLabels
-#' @importFrom ComplexHeatmap AnnotationFunction Heatmap rowAnnotation
+#' @importFrom ComplexHeatmap AnnotationFunction Heatmap rowAnnotation HeatmapAnnotation
 #' @importFrom grid unit viewport
 #' @importFrom gridExtra grid.arrange
 #' @importFrom RColorBrewer brewer.pal
@@ -306,13 +308,16 @@ plot_isoforms <- function(sce, gene_id, transcript_ids, n = 4, format = "plot_gr
 #' @export
 #' @md
 plot_isoform_heatmap <- function(
-    sce, gene_id, transcript_ids, n = 4,
-    isoform_legend_width = 7, col_low = "#313695", col_mid = "#FFFFBF", col_high = "#A50026", color_quantile = 1) {
+    sce, gene_id, transcript_ids, n = 4, isoform_legend_width = 7, col_low = "#313695",
+  col_mid = "#FFFFBF", col_high = "#A50026", color_quantile = 1, cluster_palette, ...) {
   transcript_ids <- get_top_transcript_ids(sce, gene_id, transcript_ids, n)
   sce <- sce[match(transcript_ids, rowData(sce)$transcript_id), ]
   legends_heatmap <- plot_isoforms(sce, gene_id, transcript_ids, n, format = "list")
 
-  group_annotation <- function(x) {
+  group_annotation <- function(x, cluster_palette) {
+    if (!missing(cluster_palette)) {
+      return(HeatmapAnnotation(group = x, col = list(group = cluster_palette)))
+    }
     n <- length(unique(x))
     if (n > 11 || n < 2) {
       column_anno <- HeatmapAnnotation(x)
@@ -334,7 +339,7 @@ plot_isoform_heatmap <- function(
     return(column_anno)
   }
 
-  sce <- sce[, stats::hclust(stats::dist(t(logcounts(sce))))$order]
+  # sce <- sce[, stats::hclust(stats::dist(t(logcounts(sce))))$order]
 
   expr_color_mapping <- function(expr_matrix) {
     if (color_quantile > 1 || color_quantile < 0) {
@@ -358,16 +363,19 @@ plot_isoform_heatmap <- function(
   )
 
   return(
-    Heatmap(logcounts(sce),
+    Heatmap(as.matrix(logcounts(sce)),
       name = "log expression",
-      cluster_rows = FALSE, cluster_columns = FALSE, use_raster = FALSE,
+      show_column_dend = FALSE, # cluster_columns = TRUE,
+      cluster_rows = FALSE, use_raster = FALSE,
       show_column_names = FALSE, show_row_names = FALSE,
       # https://www.r-bloggers.com/2017/02/use-switch-instead-of-ifelse-to-return-a-null/
       top_annotation = switch(!is.null(colLabels(sce)),
-        group_annotation(colLabels(sce))
+        group_annotation(colLabels(sce), cluster_palette),
       ),
       left_annotation = rowAnnotation(isoform = isoform_annotation, annotation_name_rot = 0),
-      col = expr_color_mapping(logcounts(sce))
+      col = expr_color_mapping(logcounts(sce)),
+      # column_split = colLabels(sce), column_gap = unit(0, "mm"),
+      ...
     )
   )
 }
