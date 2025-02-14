@@ -63,6 +63,7 @@ reference:
       - create_spe
       - plot_spatial_isoform
       - plot_spatial_pie
+      - plot_spatial_feature
   - title: Miscellaneous
     contents:
       - add_gene_counts
