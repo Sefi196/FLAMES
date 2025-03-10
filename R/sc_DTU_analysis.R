@@ -18,11 +18,8 @@
 #' Adjusted P-values were calculated by Benjamini–Hochberg correction.
 #'
 #' @param sce The \code{SingleCellExperiment} object from \code{sc_long_pipeline},
-#' with the following metadata:
-
-#' file is required under the output folder of the SCE object.
-#'
 #' @param min_count The minimum UMI count threshold for filtering isoforms.
+#' @param threads Number of threads to use for parallel processing.
 #'
 #' @return a \code{data.frame} containing the following columns:
 #' \describe{
@@ -34,8 +31,7 @@
 #'  \item{p_value}{ - the p-value for the test}
 #'  \item{adj_p}{ - the adjusted p-value (by Benjamini–Hochberg correction)}
 #' }
-#' The table is sorted by decreasing P-values. It will also be saved as \code{sc_DTU_analysis.csv} under the
-#' output folder.
+#' The table is sorted by decreasing P-values.
 #'
 #' @importFrom dplyr group_by ungroup summarise_at top_n left_join summarise groups mutate filter_at any_vars select_if select all_of all_vars
 #' @importFrom tidyr gather pivot_wider as_tibble
@@ -69,21 +65,23 @@
 #'   annotation = system.file("extdata", "rps24.gtf.gz", package = "FLAMES"),
 #'   outdir = outdir,
 #'   barcodes_file = bc_allow,
-#'   config_file = create_config(outdir, oarfish_quantification = FALSE)
+#'   config_file = create_config(outdir)
 #' )
 #' group_anno <- data.frame(barcode_seq = colnames(sce), groups = SingleCellExperiment::counts(sce)["ENSMUST00000169826.2", ] > 1)
 #' SingleCellExperiment::colLabels(sce) <- group_anno$groups
 #' sc_DTU_analysis(sce, min_count = 1)
-sc_DTU_analysis <- function(sce, min_count = 15) {
+sc_DTU_analysis <- function(sce, min_count = 15, threads = 1) {
 
   # sce object from sc_long_pipeline
   if (!is(sce, "SingleCellExperiment")) {
     stop("sce need to be an SingleCellExperiment Object returned by sc_long_pipeline()")
   }
-  if (!file.exists(file.path(sce@metadata$OutputFiles$outdir, "isoform_FSM_annotation.csv"))) {
-    stop("Missing isoform_FSM_annotation.csv")
-  }
+  stopifnot("min_count must be a positive number" = min_count > 0)
   stopifnot("Cluster label (colLabels(sce)) not found" = !is.null(colLabels(sce)))
+  if (!is.character(sce@metadata$OutputFiles$outdir) ||
+    !file.exists(file.path(sce@metadata$OutputFiles$outdir, "isoform_FSM_annotation.csv"))) {
+    return(isoform_chisq_test(sce, min_count, threads))
+  }
 
   outdir <- sce@metadata$OutputFiles$outdir
   cat("Loading isoform_FSM_annotation.csv ...\n")
@@ -256,4 +254,65 @@ sc_DTU_analysis <- function(sce, min_count = 15) {
   write.csv(res_df, file = file.path(outdir, "sc_DTU_analysis.csv"), row.names = FALSE)
   cat(paste(c("Results saved to ", file.path(outdir, "sc_DTU_analysis.csv"), "\n")))
   return(res_df)
+}
+
+#' @importFrom DelayedArray colsum
+isoform_chisq_test <- function(sce, min_count = 15, threads = 1) {
+
+  message("Filtering for genes with at least 2 detected isforms ...")
+  sce <- sce[rowSums(SingleCellExperiment::counts(sce)) > min_count, ]
+  genes <- SummarizedExperiment::rowData(sce) |>
+    as.data.frame() |>
+    dplyr::group_by(gene_id) |>
+    dplyr::summarise(n = n()) |>
+    dplyr::filter(n > 1)
+  sce <- sce[SummarizedExperiment::rowData(sce)$gene_id %in% genes$gene_id, ]
+  message(sprintf("\t%d isoform(s) left.\n", nrow(sce)))
+
+  message("Aggregating counts by cluster labels ...")
+  pseudobulk_counts <- SingleCellExperiment::counts(sce) |>
+    as("CsparseMatrix") |>
+    DelayedArray::colsum(
+      group = SingleCellExperiment::colLabels(sce)
+    )
+  split(1:nrow(sce), SummarizedExperiment::rowData(sce)$gene_id) |>
+    BiocParallel::bplapply(
+      FUN = \(x) chisq_test_by_gene(pseudobulk_counts[x, ]),
+      BPPARAM = BiocParallel::MulticoreParam(
+        workers = threads, stop.on.error = TRUE, progressbar = TRUE
+      )
+    ) |>
+    dplyr::bind_rows(.id = "gene") |>
+    dplyr::mutate(adj_p = p.adjust(p_value, method = "BH")) |>
+    dplyr::arrange(adj_p)
+}
+
+# a chisq.test wrapper for a gene matrix
+chisq_test_by_gene <- function(gene_mtx) {
+
+  warned <- FALSE
+  fit <- withCallingHandlers(
+    chisq.test(gene_mtx),
+    warning = function(w) {
+      if (w$message == "Chi-squared approximation may be incorrect") {
+        warned <<- TRUE
+        invokeRestart("muffleWarning")  # Suppress the warning output
+      }
+      # don't muffle other warnings
+  })
+
+  if (nrow(gene_mtx) == 2) {
+    DTU_transcript <- names(sort(rowSums(gene_mtx), decreasing = TRUE)[1])
+  } else {
+    DTU_transcript <- names(sort(rowSums(fit$residuals^2), decreasing = TRUE)[1])
+  }
+
+  tibble(
+    X_value = fit$statistic,
+    df = fit$parameter,
+    DTU_tr = DTU_transcript,
+    DTU_group = names(sort(colSums(fit$residuals^2), decreasing = TRUE)[1]),
+    p_value = fit$p.value,
+    too_few = warned
+  )
 }

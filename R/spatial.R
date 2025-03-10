@@ -176,7 +176,7 @@ plot_spatial_isoform <- function(spe, isoforms, assay_type = "counts", color_pal
 plot_spatial_feature <- function(
     spe, feature, opacity = 50, grayscale = TRUE, size = 1,
     assay_type = "counts", color = "red", ...) {
-  stopifnot("feature must be either length 1 or nrow(spe)" = length(feature) == 1 || length(feature) == nrow(spe))
+  stopifnot("feature must be either length 1 or ncol(spe)" = length(feature) == 1 || length(feature) == ncol(spe))
   if (length(feature) == 1) {
     if (is.character(feature) || is.numeric(feature)) {
       feature <- SummarizedExperiment::assay(spe, assay_type)[feature, , drop = TRUE]
