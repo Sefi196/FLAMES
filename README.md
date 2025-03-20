@@ -34,7 +34,7 @@ Function references can be found [here](https://mritchielab.github.io/FLAMES/ref
 
 [IgniteRNAseq](https://github.com/ChangqingW/IgniteRNAseq) is a workflow package and its rendered vignette can be found [here](https://changqingw.github.io/IgniteRNAseq/articles/FLAMESWorkflow.html).
 
-An analysis tutorial demonstrating both single-sample and multi-sample modes using Seurat is available [here] (https://sefi196.github.io/FLAMESv2_LR_sc_tutorial/).
+A Long read single cell analysis tutorial using both single-sample and multi-sample modes is available [here](https://sefi196.github.io/FLAMESv2_LR_sc_tutorial/).
 
 ## Common issues
 
