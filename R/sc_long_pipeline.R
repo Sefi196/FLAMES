@@ -317,6 +317,13 @@ sc_long_pipeline <- function(
           )
         )
       )
+    } else {
+      metadata$results <- c(metadata$results,
+        list("minimap2_realign" =
+          minimap2_realign(config, infq_realign, outdir, minimap2,
+            prefix = NULL, threads = config$pipeline_parameters$threads)
+        )
+      )
     }
   } else {
     cat("#### Skip read realignment\n")

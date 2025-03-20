@@ -38,11 +38,11 @@ A Long read single cell analysis tutorial using both single-sample and multi-sam
 
 ## Common issues
 
-- basilisk / reticulate errors  
+- **basilisk / reticulate errors**  
 If you encounter errors from Python code execution, you could try adding `basilisk::setBasiliskFork(FALSE)` before running FLAMES.
 
-- Isoform identification with bambu
-If you encounter errors during isoform identification using Bambu, you can try troubleshooting by setting the bambu_verbose parameter to TRUE. We have found the following steps helpful in resolving issues:
+- **Isoform identification with bambu**
+If you encounter errors during isoform identification using Bambu, you can try troubleshooting by setting the '''bambu_verbose''' parameter to TRUE. We have found the following steps helpful in resolving issues:
 
 1. Remove supplementary alignments from the genome BAM file.
 
