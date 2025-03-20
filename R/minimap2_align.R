@@ -101,9 +101,11 @@ minimap2_align <- function(config, fa_file, fq_in, annot, outdir, minimap2 = NA,
     "status") != 0) {
     stop(paste0("error running minimap2:\n", minimap2_status))
   }
-  sort_status <- base::system2(command = samtools, args = c("sort", file.path(outdir,
+  cat(paste0("Sorting BAM files with ", threads, " threads...\n"))
+  sort_status <- base::system2(command = samtools, args = c("sort", "-@", threads, file.path(outdir,
     paste0(prefix, "tmp_align.bam")), "-o", file.path(outdir, paste0(prefix,
     "align2genome.bam"))))
+  cat("Indexing bam files\n")
   index_status <- base::system2(command = samtools, args = c("index", file.path(outdir,
     paste0(prefix, "align2genome.bam"))))
   file.remove(file.path(outdir, paste0(prefix, "tmp_align.bam")))
@@ -179,6 +181,7 @@ minimap2_realign <- function(config, fq_in, outdir, minimap2, samtools = NULL, p
     tags <- switch(has_tags, "-y")
     minimap2_args <- c("-ax", "map-ont", tags, "-p", "0.9", "--end-bonus", "10", "-N",
       "3", "-t", threads, "--seed", config$pipeline_parameters$seed)
+    cat("Running minimap2 with args:", minimap2_args, "\n")
   }
 
   stopifnot("Samtools not found" = !is.na(samtools))
@@ -193,13 +196,19 @@ minimap2_realign <- function(config, fq_in, outdir, minimap2, samtools = NULL, p
 
   if (missing(sort_by)) {
     cat("Sorting by position\n")
+    cat(paste0("Sorting BAM file with ", threads, " threads...\n"))
     sort_status <- base::system2(
-      command = samtools,
-      args = c("sort",
-        file.path(outdir, paste0(prefix, "tmp_align.bam")), "-o",
-        file.path(outdir, paste0(prefix, "realign2transcript.bam"))
-      )
+    command = samtools,
+    args = c(
+      "sort",
+      "-@", threads,
+      "-T", file.path(outdir, paste0(prefix, "tmp_sort")),
+      "-o", file.path(outdir, paste0(prefix, "realign2transcript.bam")),
+      file.path(outdir, paste0(prefix, "tmp_align.bam"))
     )
+  )
+
+    cat("Indexing bam files\n")
     index_status <- base::system2(
       command = samtools,
       args = c("index",
@@ -207,14 +216,20 @@ minimap2_realign <- function(config, fq_in, outdir, minimap2, samtools = NULL, p
       )
     )
   } else if (is.character(sort_by)) {
-    cat("Sorting by ", sort_by, "\n")
+    cat("Sorting by", sort_by, "for oarfish quantifaction", "\n")
+    cat(paste0("🔹 Sorting BAM file with ", threads, " threads...\n"))
     sort_status <- base::system2(
-      command = samtools,
-      args = c("sort", "-t", sort_by,
-        file.path(outdir, paste0(prefix, "tmp_align.bam")), "-o",
-        file.path(outdir, paste0(prefix, "realign2transcript.bam"))
-      )
+    command = samtools,
+    args = c(
+      "sort",
+      "-t", sort_by, #sort_by, # Sort by the CB tag
+      "-@", threads,
+      "-T", file.path(outdir, paste0(prefix, "tmp_sort")),
+      "-o", file.path(outdir, paste0(prefix, "realign2transcript.bam")),
+      file.path(outdir, paste0(prefix, "tmp_align.bam"))
     )
+  )
+
   } else if (is.na(sort_by)) {
     cat("file renamed to ", paste0(prefix, "realign2transcript.bam"), "\n")
     file.rename(file.path(outdir, paste0(prefix, "tmp_align.bam")), file.path(outdir, paste0(prefix, "realign2transcript.bam")))
