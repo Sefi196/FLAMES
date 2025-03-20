@@ -181,7 +181,6 @@ minimap2_realign <- function(config, fq_in, outdir, minimap2, samtools = NULL, p
     tags <- switch(has_tags, "-y")
     minimap2_args <- c("-ax", "map-ont", tags, "-p", "0.9", "--end-bonus", "10", "-N",
       "3", "-t", threads, "--seed", config$pipeline_parameters$seed)
-    cat("Running minimap2 with args:", minimap2_args, "\n")
   }
 
   stopifnot("Samtools not found" = !is.na(samtools))
