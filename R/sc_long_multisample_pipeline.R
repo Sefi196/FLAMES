@@ -132,7 +132,6 @@ sc_long_multisample_pipeline <- function(annotation, fastqs, outdir, genome_fa,
   metadata$inputs <- metadata$inputs[!sapply(metadata$inputs, is.null)]
 
   # check fastqs
-  cat("#### testing sefi branch\n")
   if (length(fastqs) == 1) {
     if (file_test("-f", fastqs)) {
       stop("Only one fastq file provided, did you meant to used the single-sample pipeline (FLAMES::sc_long_pipeline) ?")
